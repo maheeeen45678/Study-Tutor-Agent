@@ -3,7 +3,7 @@ import os
 from crewai import Agent, Task, Crew, Process, LLM
 
 from tools import calculator, current_time
-from memory import create_memory
+from memory import create_memory, add_to_memory, get_memory
 
 
 # --------------------------------------------------
@@ -18,18 +18,10 @@ groq_llm = LLM(
 
 
 # --------------------------------------------------
-# MEMORY
-# --------------------------------------------------
-
-study_memory = create_memory()
-
-
-# --------------------------------------------------
 # STUDY TUTOR AGENT
 # --------------------------------------------------
 
 study_tutor = Agent(
-
     role="Study Tutor",
 
     goal=(
@@ -64,48 +56,69 @@ study_tutor = Agent(
 
 def ask_study_tutor(question, difficulty="Beginner"):
 
+    # Get previous conversation
+    history = get_memory()
+
+    previous_context = ""
+
+    if history:
+        previous_context = "\nPrevious conversation:\n"
+
+        for item in history[-5:]:
+            previous_context += (
+                f"Student: {item['question']}\n"
+                f"Tutor: {item['answer']}\n\n"
+            )
+
+
+    # --------------------------------------------------
+    # CREATE TASK
+    # --------------------------------------------------
+
     task = Task(
 
         description=f"""
-        You are helping a student with their studies.
+You are helping a student with their studies.
 
-        Student level:
-        {difficulty}
+Student level:
+{difficulty}
 
-        Student question:
-        {question}
+Student question:
+{question}
 
-        Follow these instructions:
+{previous_context}
 
-        1. Answer the student's question directly.
+Follow these instructions:
 
-        2. Adapt your explanation to the student's
-           selected difficulty level.
+1. Answer the student's question directly.
 
-        3. If the student is a Beginner, use simple
-           language and examples.
+2. Adapt your explanation to the selected
+   difficulty level.
 
-        4. Break difficult concepts into smaller parts.
+3. If the student is a Beginner, use simple
+   language and examples.
 
-        5. If the question involves mathematics,
-           use the Calculator tool.
+4. Break difficult concepts into smaller parts.
 
-        6. If useful, use the Current Time tool.
+5. If the question involves mathematics,
+   use the Calculator tool.
 
-        7. Do not invent facts.
+6. If useful, use the Current Time tool.
 
-        8. If something is uncertain, clearly state
-           that it is uncertain.
+7. Do not invent facts.
 
-        9. Do not unnecessarily make the answer very long.
+8. If something is uncertain, clearly state
+   that it is uncertain.
 
-        10. At the end, provide:
+9. Do not unnecessarily make the answer very long.
 
-            Key Revision Points:
-            - Point 1
-            - Point 2
-            - Point 3
-        """,
+10. At the end, provide:
+
+Key Revision Points:
+- Point 1
+- Point 2
+- Point 3
+""",
 
         expected_output=(
             "A clear and accurate educational answer "
@@ -122,19 +135,9 @@ def ask_study_tutor(question, difficulty="Beginner"):
     # --------------------------------------------------
 
     crew = Crew(
-
-        agents=[
-            study_tutor
-        ],
-
-        tasks=[
-            task
-        ],
-
+        agents=[study_tutor],
+        tasks=[task],
         process=Process.sequential,
-
-        memory=study_memory,
-
         verbose=False
     )
 
@@ -145,5 +148,17 @@ def ask_study_tutor(question, difficulty="Beginner"):
 
     result = crew.kickoff()
 
+    answer = str(result)
 
-    return str(result)
+
+    # --------------------------------------------------
+    # SAVE MEMORY
+    # --------------------------------------------------
+
+    add_to_memory(question, answer)
+
+
+    return answer
+
+
+    
